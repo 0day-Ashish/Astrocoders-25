@@ -1,5 +1,11 @@
 @import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
+nav {
+  z-index: 100; /* Ensure it stays on top */
+}
 #root {
   max-width: 1280px;
   margin: 0 auto;
