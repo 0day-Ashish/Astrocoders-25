@@ -15,14 +15,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Include your routes
+# Include routers
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 app.include_router(payments.router, prefix="/payments", tags=["Payments"])
 app.include_router(orders.router, prefix="/orders", tags=["Orders"])
 app.include_router(nft.router, prefix="/nft", tags=["NFT Tickets"])
 
-# Health check
 @app.get("/")
 def root():
     return {"status": "API is up and running successfully!"}
