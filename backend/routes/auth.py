@@ -2,11 +2,19 @@ from fastapi import APIRouter, HTTPException, Depends
 from stellar_sdk import Server, Keypair, TransactionEnvelope, Network
 from pydantic import BaseModel
 from jose import jwt
+from fastapi import Response
 from datetime import datetime, timedelta
 import os
 from fastapi.security import HTTPBearer
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
-router = APIRouter(prefix="/auth", tags=["Authentication"])
+limiter = Limiter(key_func=get_remote_address)
+router = APIRouter(
+    prefix="/auth",
+    tags=["Authentication"],
+    dependencies=[Depends(limiter.limit("5/minute"))]  # Added Rate Limiting
+)
 security = HTTPBearer()
 server = Server(horizon_url="https://horizon-testnet.stellar.org")
 
@@ -31,8 +39,7 @@ def create_jwt(public_key: str) -> str:
     )
 
 @router.post("/stellar")
-async def stellar_auth(request: StellarAuthRequest):
-    """Authenticate using Stellar wallet"""
+async def stellar_auth(request: StellarAuthRequest, response: Response):
     try:
         # 1. Verify signature
         keypair = Keypair.from_public_key(request.public_key)
@@ -42,22 +49,33 @@ async def stellar_auth(request: StellarAuthRequest):
         ):
             raise ValueError("Invalid signature")
 
-        # 2. Check account exists
+        # 2. Check account exists (THIS DEFINES THE account VARIABLE)
         account = await server.accounts().account_id(request.public_key).call()
         
         # 3. Issue JWT
+        token = create_jwt(request.public_key)
+        
+        response.set_cookie(
+            key="jwt",
+            value=token,
+            httponly=True,
+            secure=False,  # Disable in development
+            samesite="strict",
+            max_age=86400,
+            path="/",
+        )
+
         return {
-            "access_token": create_jwt(request.public_key),
-            "token_type": "bearer",
+            "message": "Authentication successful",
             "account_info": {
-                "balances": account["balances"],
-                "sequence": account["sequence"]
+                "public_key": request.public_key,
+                "balances": account["balances"]  # Now account is defined
             }
         }
         
     except Exception as e:
         raise HTTPException(401, detail=f"Authentication failed: {str(e)}")
-
+    
 # Protected endpoint example
 @router.get("/me")
 async def get_current_user(token: str = Depends(security)):
@@ -67,3 +85,19 @@ async def get_current_user(token: str = Depends(security)):
         return {"public_key": payload["sub"]}
     except Exception as e:
         raise HTTPException(401, detail="Invalid token")
+    
+# Logout endpoint
+# This will clear the JWT cookie
+# and effectively log the user out
+
+@router.post("/logout")
+async def logout(response: Response):
+    """Clear the JWT cookie to log out"""
+    response.delete_cookie(
+        key="jwt",
+        path="/",
+        # domain="yourdomain.com"  # Uncomment in production
+    )
+    return {"message": "Logged out"}
+
+# [...] (keep any remaining code below)
