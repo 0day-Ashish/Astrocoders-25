@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from routes import payments, orders, nft, auth
 from fastapi.middleware.cors import CORSMiddleware
 
+
 app = FastAPI(
     title="Multi-Chain Event Ticketing API",
     version="1.0.0"
